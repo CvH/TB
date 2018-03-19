@@ -1,0 +1,708 @@
+From fbf6bf0fba9542d25f6f7730869e44b5e23ad48e Mon Sep 17 00:00:00 2001
+From: Stefan Saraev <stefan@saraev.ca>
+Date: Fri, 14 Apr 2017 21:42:47 +0300
+Subject: [PATCH 01/11] [tb] meh .so versioning
+
+---
+ cmake/scripts/common/AddonHelpers.cmake | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/cmake/scripts/common/AddonHelpers.cmake b/cmake/scripts/common/AddonHelpers.cmake
+index 5470940420..3d11e3b906 100644
+--- a/cmake/scripts/common/AddonHelpers.cmake
++++ b/cmake/scripts/common/AddonHelpers.cmake
+@@ -179,7 +179,7 @@ macro (build_addon target prefix libs)
+       # for android we need the filename without any version numbers
+       set(LIBRARY_FILENAME $<TARGET_LINKER_FILE_NAME:${target}>)
+     else()
+-      set(LIBRARY_FILENAME $<TARGET_FILE_NAME:${target}>)
++      set(LIBRARY_FILENAME $<TARGET_LINKER_FILE_NAME:${target}>)
+     endif()
+   endif()
+ 
+-- 
+2.17.0
+
+
+From b2023cc5ea080f8f7fbb7229cbedbd19d15e0ece Mon Sep 17 00:00:00 2001
+From: Stefan Saraev <stefan@saraev.ca>
+Date: Fri, 14 Apr 2017 21:39:38 +0300
+Subject: [PATCH 02/11] [tb] meh disabled addons
+
+---
+ xbmc/addons/AddonDatabase.cpp | 5 +----
+ 1 file changed, 1 insertion(+), 4 deletions(-)
+
+diff --git a/xbmc/addons/AddonDatabase.cpp b/xbmc/addons/AddonDatabase.cpp
+index 4c48cdeba6..efe6b02a7f 100644
+--- a/xbmc/addons/AddonDatabase.cpp
++++ b/xbmc/addons/AddonDatabase.cpp
+@@ -349,10 +349,7 @@ void CAddonDatabase::SyncInstalled(const std::set<std::string>& ids,
+     BeginTransaction();
+     for (const auto& id : added)
+     {
+-      int enable = 0;
+-
+-      if (system.find(id) != system.end() || optional.find(id) != optional.end())
+-        enable = 1;
++      int enable = 1;
+ 
+       m_pDS->exec(PrepareSQL("INSERT INTO installed(addonID, enabled, installDate) "
+         "VALUES('%s', %d, '%s')", id.c_str(), enable, now.c_str()));
+-- 
+2.17.0
+
+
+From 418904d9a4d01bbd04119ac3ccbaf4c45c5253f2 Mon Sep 17 00:00:00 2001
+From: Stefan Saraev <stefan@saraev.ca>
+Date: Mon, 6 Feb 2017 20:56:37 +0200
+Subject: [PATCH 03/11] [tb] meh addon browser
+
+---
+ xbmc/filesystem/AddonsDirectory.cpp | 38 +++++++++++++++++++++++++++--
+ 1 file changed, 36 insertions(+), 2 deletions(-)
+
+diff --git a/xbmc/filesystem/AddonsDirectory.cpp b/xbmc/filesystem/AddonsDirectory.cpp
+index 3849777b02..29b0ecf09e 100644
+--- a/xbmc/filesystem/AddonsDirectory.cpp
++++ b/xbmc/filesystem/AddonsDirectory.cpp
+@@ -163,8 +163,16 @@ static bool IsDependencyType(TYPE type)
+ 
+ static bool IsUserInstalled(const AddonPtr& addon)
+ {
+-  return std::find_if(dependencyTypes.begin(), dependencyTypes.end(),
+-      [&](TYPE type){ return addon->IsType(type); }) == dependencyTypes.end();
++  if (CServiceBroker::GetAddonMgr().IsSystemAddon(addon->ID()))
++    return false;
++  return true;
++}
++
++static bool IsSystem(const AddonPtr& addon)
++{
++  if (CServiceBroker::GetAddonMgr().IsSystemAddon(addon->ID()))
++    return true;
++  return false;
+ }
+ 
+ static bool IsOrphaned(const AddonPtr& addon, const VECADDONS& all)
+@@ -478,6 +486,21 @@ static void UserInstalledAddons(const CURL& path, CFileItemList &items)
+     GenerateCategoryListing(path, addons, items);
+ }
+ 
++static void SystemAddons(const CURL& path, CFileItemList &items)
++{
++  items.ClearItems();
++  items.SetLabel("System add-ons");
++
++  VECADDONS addons;
++  CServiceBroker::GetAddonMgr().GetInstalledAddons(addons);
++  addons.erase(std::remove_if(addons.begin(), addons.end(),
++                              std::not1(std::ptr_fun(IsSystem))), addons.end());
++  if (addons.empty())
++    return;
++
++  CAddonsDirectory::GenerateAddonListing(path, addons, items, "System add-ons");
++}
++
+ static void DependencyAddons(const CURL& path, CFileItemList &items)
+ {
+   VECADDONS all;
+@@ -627,6 +650,12 @@ static void RootDirectory(CFileItemList& items)
+     item->SetIconImage("DefaultAddonsInstalled.png");
+     items.Add(item);
+   }
++  {
++    CFileItemPtr item(new CFileItem("addons://system/", true));
++    item->SetLabel("System add-ons");
++    item->SetIconImage("DefaultAddonsInstalled.png");
++    items.Add(item);
++  }
+   if (CServiceBroker::GetAddonMgr().HasAvailableUpdates())
+   {
+     CFileItemPtr item(new CFileItem("addons://outdated/", true));
+@@ -691,6 +720,11 @@ bool CAddonsDirectory::GetDirectory(const CURL& url, CFileItemList &items)
+     UserInstalledAddons(path, items);
+     return true;
+   }
++  else if (endpoint == "system")
++  {
++    SystemAddons(path, items);
++    return true;
++  }
+   else if (endpoint == "dependencies")
+   {
+     DependencyAddons(path, items);
+-- 
+2.17.0
+
+
+From 5897c5fe1a3295fb1f5d4eb1fb3470b427a1592f Mon Sep 17 00:00:00 2001
+From: Stefan Saraev <stefan@saraev.ca>
+Date: Mon, 15 Dec 2014 21:28:54 +0200
+Subject: [PATCH 04/11] [tb] poweroff / reboot
+
+---
+ xbmc/Application.cpp                                       | 5 +++++
+ xbmc/platform/linux/powermanagement/FallbackPowerSyscall.h | 6 ++++--
+ 2 files changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/xbmc/Application.cpp b/xbmc/Application.cpp
+index f43eefecfa..7cd9f23ec5 100644
+--- a/xbmc/Application.cpp
++++ b/xbmc/Application.cpp
+@@ -2801,6 +2801,11 @@ bool CApplication::Cleanup()
+ 
+ void CApplication::Stop(int exitCode)
+ {
++  if (exitCode == EXITCODE_POWERDOWN || exitCode == EXITCODE_REBOOT)
++  {
++    // init sends TERM and Stop(TMSG_QUIT) is called
++    return;
++  }
+   {
+     // close inbound port
+     CServiceBroker::UnregisterAppPort();
+diff --git a/xbmc/platform/linux/powermanagement/FallbackPowerSyscall.h b/xbmc/platform/linux/powermanagement/FallbackPowerSyscall.h
+index 0f7b11221d..d6435d6273 100644
+--- a/xbmc/platform/linux/powermanagement/FallbackPowerSyscall.h
++++ b/xbmc/platform/linux/powermanagement/FallbackPowerSyscall.h
+@@ -19,14 +19,16 @@
+  */
+ #pragma once
+ #include "powermanagement/IPowerSyscall.h"
++#include "system.h"
++#include <cstdlib>
+ 
+ class CFallbackPowerSyscall : public CPowerSyscallWithoutEvents
+ {
+ public:
+-  bool Powerdown() override {return true; }
++  bool Powerdown() override { return system("poweroff"); }
+   bool Suspend() override {return false; }
+   bool Hibernate() override {return false; }
+-  bool Reboot() override {return true; }
++  bool Reboot() override { return system("reboot"); }
+ 
+   bool CanPowerdown() override {return true; }
+   bool CanSuspend() override {return false; }
+-- 
+2.17.0
+
+
+From 75fac9ca7a7f8b0ec9c725b93b3bd6f46f1d7c3a Mon Sep 17 00:00:00 2001
+From: Stefan Saraev <stefan@saraev.ca>
+Date: Sat, 6 May 2017 18:24:25 +0300
+Subject: [PATCH 05/11] [tb] drop FindSSE
+
+---
+ cmake/scripts/common/ArchSetup.cmake | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/cmake/scripts/common/ArchSetup.cmake b/cmake/scripts/common/ArchSetup.cmake
+index c97929e58c..a46d68d255 100644
+--- a/cmake/scripts/common/ArchSetup.cmake
++++ b/cmake/scripts/common/ArchSetup.cmake
+@@ -126,7 +126,6 @@ if(HAVE_INTTYPES_H)
+   list(APPEND SYSTEM_DEFINES -DHAVE_INTTYPES_H=1)
+ endif()
+ 
+-find_package(SSE)
+ foreach(_sse SSE SSE2 SSE3 SSSE3 SSE4_1 SSE4_2 AVX AVX2)
+   if(${${_sse}_FOUND})
+     # enable SSE versions up to 4.1 by default, if available
+-- 
+2.17.0
+
+
+From 09bd5bbef64c695cc782d7331b13f1607d1d4312 Mon Sep 17 00:00:00 2001
+From: Stefan Saraev <stefan@saraev.ca>
+Date: Sun, 12 Feb 2017 23:06:38 +0200
+Subject: [PATCH 06/11] [tb] drop crossguid
+
+---
+ CMakeLists.txt                    |  4 +---
+ cmake/scripts/common/Macros.cmake |  4 ++--
+ xbmc/utils/StringUtils.cpp        | 10 +++++-----
+ 3 files changed, 8 insertions(+), 10 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 18568cd550..365a11e872 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -54,7 +54,6 @@ option(ENABLE_PYTHON      "Enable python support?" ON)
+ option(ENABLE_INTERNAL_FFMPEG "Enable internal ffmpeg?" OFF)
+ if(UNIX)
+   option(FFMPEG_PATH        "Path to external ffmpeg?" "")
+-  option(ENABLE_INTERNAL_CROSSGUID "Enable internal crossguid?" ON)
+   option(ENABLE_INTERNAL_RapidJSON "Enable internal rapidjson?" OFF)
+   option(ENABLE_INTERNAL_FMT "Enable internal fmt?" OFF)
+ endif()
+@@ -111,7 +110,6 @@ endforeach()
+ # Required dependencies. Keep in alphabetical order please
+ set(required_deps Cdio
+                   Cpluff
+-                  CrossGUID
+                   Curl
+                   FFMPEG
+                   Fmt
+@@ -291,7 +289,7 @@ endif()
+ 
+ # main library (used for main binary and tests)
+ add_library(lib${APP_NAME_LC} STATIC $<TARGET_OBJECTS:compileinfo>)
+-add_dependencies(lib${APP_NAME_LC} libcpluff ffmpeg dvdnav crossguid ${PLATFORM_GLOBAL_TARGET_DEPS})
++add_dependencies(lib${APP_NAME_LC} libcpluff ffmpeg dvdnav ${PLATFORM_GLOBAL_TARGET_DEPS})
+ set_target_properties(lib${APP_NAME_LC} PROPERTIES PREFIX "")
+ 
+ # Other files (IDE)
+diff --git a/cmake/scripts/common/Macros.cmake b/cmake/scripts/common/Macros.cmake
+index c21069d9cd..b8086a93c9 100644
+--- a/cmake/scripts/common/Macros.cmake
++++ b/cmake/scripts/common/Macros.cmake
+@@ -72,7 +72,7 @@ function(core_add_library name)
+     add_library(${name} STATIC ${SOURCES} ${HEADERS} ${OTHERS})
+     set_target_properties(${name} PROPERTIES PREFIX "")
+     set(core_DEPENDS ${name} ${core_DEPENDS} CACHE STRING "" FORCE)
+-    set(lib_DEPS libcpluff ffmpeg crossguid ${PLATFORM_GLOBAL_TARGET_DEPS})
++    set(lib_DEPS libcpluff ffmpeg ${PLATFORM_GLOBAL_TARGET_DEPS})
+     if(NOT CORE_SYSTEM_NAME STREQUAL windowsstore)
+       list(APPEND lib_DEPS dvdnav)
+     endif()
+@@ -106,7 +106,7 @@ function(core_add_test_library name)
+     set_target_properties(${name} PROPERTIES PREFIX ""
+                                              EXCLUDE_FROM_ALL 1
+                                              FOLDER "Build Utilities/tests")
+-    set(lib_DEPS libcpluff ffmpeg crossguid ${PLATFORM_GLOBAL_TARGET_DEPS})
++    set(lib_DEPS libcpluff ffmpeg ${PLATFORM_GLOBAL_TARGET_DEPS})
+     if(NOT CORE_SYSTEM_NAME STREQUAL windowsstore)
+       list(APPEND lib_DEPS dvdnav)
+     endif()
+diff --git a/xbmc/utils/StringUtils.cpp b/xbmc/utils/StringUtils.cpp
+index 5589003429..8c06994af6 100644
+--- a/xbmc/utils/StringUtils.cpp
++++ b/xbmc/utils/StringUtils.cpp
+@@ -28,7 +28,7 @@
+ //
+ //------------------------------------------------------------------------
+ 
+-#include <guid.h>
++#include <fstream>
+ 
+ #if defined(TARGET_ANDROID)
+ #include <androidjni/JNIThreading.h>
+@@ -1137,11 +1137,11 @@ void StringUtils::WordToDigits(std::string &word)
+ 
+ std::string StringUtils::CreateUUID()
+ {
+-  static GuidGenerator guidGenerator;
+-  auto guid = guidGenerator.newGuid();
+ 
+-  std::stringstream strGuid; strGuid << guid;
+-  return strGuid.str();
++  std::ifstream uuid("/proc/sys/kernel/random/uuid");
++  std::string strGuid;
++  std::getline(uuid, strGuid);
++  return strGuid;
+ }
+ 
+ bool StringUtils::ValidateUUID(const std::string &uuid)
+-- 
+2.17.0
+
+
+From 62ad6a33c3628cb3a57bd49fd1ef60f55ca8d91b Mon Sep 17 00:00:00 2001
+From: Stefan Saraev <stefan@saraev.ca>
+Date: Fri, 28 Apr 2017 21:45:17 +0300
+Subject: [PATCH 07/11] [tb] drop texturepacker
+
+---
+ CMakeLists.txt                           | 7 +------
+ cmake/scripts/common/ProjectMacros.cmake | 7 -------
+ cmake/scripts/linux/Install.cmake        | 7 -------
+ 3 files changed, 1 insertion(+), 20 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 365a11e872..3f73c2eb36 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -168,7 +168,6 @@ set(dyload_optional Bluray
+                     Plist)
+ 
+ # Required tools
+-find_package(TexturePacker REQUIRED)
+ find_package(JsonSchemaBuilder REQUIRED)
+ 
+ core_require_dep(${required_deps})
+@@ -272,10 +271,6 @@ foreach(skin ${SKINS})
+   copy_skin_to_buildtree(${dir} ${relative})
+ endforeach()
+ 
+-add_custom_target(pack-skins ALL
+-                  DEPENDS TexturePacker::TexturePacker export-files ${XBT_FILES})
+-set_target_properties(pack-skins PROPERTIES FOLDER "Build Utilities")
+-
+ file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/system/players/VideoPlayer)
+ 
+ set(LIBCEC_SONAME "${CEC_SONAME}")
+@@ -320,7 +315,7 @@ else()
+   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--no-undefined")
+   add_library(${APP_NAME_LC} SHARED ${CORE_MAIN_SOURCE} "${RESOURCES}" ${OTHER_FILES})
+ endif()
+-add_dependencies(${APP_NAME_LC} ${APP_NAME_LC}-libraries export-files pack-skins)
++add_dependencies(${APP_NAME_LC} ${APP_NAME_LC}-libraries export-files)
+ whole_archive(_MAIN_LIBRARIES ${core_DEPENDS})
+ target_link_libraries(${APP_NAME_LC} ${_MAIN_LIBRARIES} lib${APP_NAME_LC} ${DEPLIBS})
+ unset(_MAIN_LIBRARIES)
+diff --git a/cmake/scripts/common/ProjectMacros.cmake b/cmake/scripts/common/ProjectMacros.cmake
+index 641e0474fb..e16b8de970 100644
+--- a/cmake/scripts/common/ProjectMacros.cmake
++++ b/cmake/scripts/common/ProjectMacros.cmake
+@@ -34,14 +34,7 @@ function(copy_skin_to_buildtree skin)
+   endforeach()
+   file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/${dest}/media)
+   string(REPLACE "${CMAKE_SOURCE_DIR}/" "" dest ${skin})
+-  pack_xbt(${skin}/media ${CMAKE_BINARY_DIR}/${dest}/media/Textures.xbt)
+ 
+-  file(GLOB THEMES RELATIVE ${skin}/themes ${skin}/themes/*)
+-  foreach(theme ${THEMES})
+-    pack_xbt(${skin}/themes/${theme} ${CMAKE_BINARY_DIR}/${dest}/media/${theme}.xbt)
+-  endforeach()
+-
+-  set(XBT_FILES ${XBT_FILES} PARENT_SCOPE)
+   set(install_data ${install_data} PARENT_SCOPE)
+ endfunction()
+ 
+diff --git a/cmake/scripts/linux/Install.cmake b/cmake/scripts/linux/Install.cmake
+index d6767bf246..587dd62123 100644
+--- a/cmake/scripts/linux/Install.cmake
++++ b/cmake/scripts/linux/Install.cmake
+@@ -139,13 +139,6 @@ install(FILES ${CMAKE_SOURCE_DIR}/privacy-policy.txt
+         DESTINATION ${datarootdir}/${APP_NAME_LC}
+         COMPONENT kodi)
+ 
+-# Install kodi-tools-texturepacker
+-if(NOT WITH_TEXTUREPACKER)
+-  install(PROGRAMS $<TARGET_FILE:TexturePacker::TexturePacker>
+-          DESTINATION ${bindir}
+-          COMPONENT kodi-tools-texturepacker)
+-endif()
+-
+ # Install kodi-addon-dev headers
+ include(${CMAKE_SOURCE_DIR}/xbmc/addons/AddonBindings.cmake)
+ install(DIRECTORY ${CORE_ADDON_BINDINGS_DIRS}/
+-- 
+2.17.0
+
+
+From e9dfe5d16f13ee2f8fd910af716989d9a412f0e6 Mon Sep 17 00:00:00 2001
+From: Stefan Saraev <stefan@saraev.ca>
+Date: Fri, 28 Apr 2017 21:57:31 +0300
+Subject: [PATCH 08/11] [tb] drop libdvd
+
+---
+ CMakeLists.txt                    | 4 +---
+ cmake/scripts/common/Macros.cmake | 6 ------
+ 2 files changed, 1 insertion(+), 9 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 3f73c2eb36..817e42b062 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -45,7 +45,6 @@ set(CMAKE_ASM_FLAGS "${CMAKE_C_FLAGS} -x assembler-with-cpp")
+ 
+ # general
+ option(VERBOSE            "Enable verbose output?" OFF)
+-option(ENABLE_DVDCSS      "Enable libdvdcss support?" ON)
+ option(ENABLE_UPNP        "Enable UPnP support?" ON)
+ option(ENABLE_AIRTUNES    "Enable AirTunes support?" ON)
+ option(ENABLE_OPTICAL     "Enable optical support?" ON)
+@@ -116,7 +115,6 @@ set(required_deps Cdio
+                   FreeType
+                   FriBidi
+                   Iconv
+-                  LibDvd
+                   Lzo2
+                   OpenSSL
+                   PCRE
+@@ -284,7 +282,7 @@ endif()
+ 
+ # main library (used for main binary and tests)
+ add_library(lib${APP_NAME_LC} STATIC $<TARGET_OBJECTS:compileinfo>)
+-add_dependencies(lib${APP_NAME_LC} libcpluff ffmpeg dvdnav ${PLATFORM_GLOBAL_TARGET_DEPS})
++add_dependencies(lib${APP_NAME_LC} libcpluff ffmpeg ${PLATFORM_GLOBAL_TARGET_DEPS})
+ set_target_properties(lib${APP_NAME_LC} PROPERTIES PREFIX "")
+ 
+ # Other files (IDE)
+diff --git a/cmake/scripts/common/Macros.cmake b/cmake/scripts/common/Macros.cmake
+index b8086a93c9..5ab76c193c 100644
+--- a/cmake/scripts/common/Macros.cmake
++++ b/cmake/scripts/common/Macros.cmake
+@@ -73,9 +73,6 @@ function(core_add_library name)
+     set_target_properties(${name} PROPERTIES PREFIX "")
+     set(core_DEPENDS ${name} ${core_DEPENDS} CACHE STRING "" FORCE)
+     set(lib_DEPS libcpluff ffmpeg ${PLATFORM_GLOBAL_TARGET_DEPS})
+-    if(NOT CORE_SYSTEM_NAME STREQUAL windowsstore)
+-      list(APPEND lib_DEPS dvdnav)
+-    endif()
+     add_dependencies(${name} ${lib_DEPS})
+     set(CORE_LIBRARY ${name} PARENT_SCOPE)
+ 
+@@ -107,9 +104,6 @@ function(core_add_test_library name)
+                                              EXCLUDE_FROM_ALL 1
+                                              FOLDER "Build Utilities/tests")
+     set(lib_DEPS libcpluff ffmpeg ${PLATFORM_GLOBAL_TARGET_DEPS})
+-    if(NOT CORE_SYSTEM_NAME STREQUAL windowsstore)
+-      list(APPEND lib_DEPS dvdnav)
+-    endif()
+     add_dependencies(${name} ${lib_DEPS})
+     set(test_archives ${test_archives} ${name} CACHE STRING "" FORCE)
+   endif()
+-- 
+2.17.0
+
+
+From a00a1ce0fe78d927d7884e5087414ee6777e3d6f Mon Sep 17 00:00:00 2001
+From: Stefan Saraev <stefan@saraev.ca>
+Date: Tue, 14 Feb 2017 20:44:59 +0200
+Subject: [PATCH 09/11] [tb] drop iso support / libcdio
+
+---
+ CMakeLists.txt                             | 3 +--
+ xbmc/filesystem/CMakeLists.txt             | 6 ------
+ xbmc/filesystem/DirectoryFactory.cpp       | 2 --
+ xbmc/filesystem/FileFactory.cpp            | 3 ---
+ xbmc/music/MusicDatabase.cpp               | 1 -
+ xbmc/music/tags/MusicInfoTagLoaderCDDA.cpp | 1 -
+ xbmc/platform/linux/XFileUtils.cpp         | 2 --
+ xbmc/storage/CMakeLists.txt                | 2 --
+ 8 files changed, 1 insertion(+), 19 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 817e42b062..6da6701e97 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -107,8 +107,7 @@ foreach(depspec ${PLATFORM_REQUIRED_DEPS})
+ endforeach()
+ 
+ # Required dependencies. Keep in alphabetical order please
+-set(required_deps Cdio
+-                  Cpluff
++set(required_deps Cpluff
+                   Curl
+                   FFMPEG
+                   Fmt
+diff --git a/xbmc/filesystem/CMakeLists.txt b/xbmc/filesystem/CMakeLists.txt
+index e07e0c6bb1..ce40ca43d6 100644
+--- a/xbmc/filesystem/CMakeLists.txt
++++ b/xbmc/filesystem/CMakeLists.txt
+@@ -23,9 +23,6 @@ set(SOURCES AddonsDirectory.cpp
+             IDirectory.cpp
+             IFile.cpp
+             ImageFile.cpp
+-            iso9660.cpp
+-            ISO9660Directory.cpp
+-            ISOFile.cpp
+             LibraryDirectory.cpp
+             MultiPathDirectory.cpp
+             MultiPathFile.cpp
+@@ -92,9 +89,6 @@ set(HEADERS AddonsDirectory.h
+             IFileDirectory.h
+             IFileTypes.h
+             ImageFile.h
+-            ISO9660Directory.h
+-            ISOFile.h
+-            iso9660.h
+             LibraryDirectory.h
+             MultiPathDirectory.h
+             MultiPathFile.h
+diff --git a/xbmc/filesystem/DirectoryFactory.cpp b/xbmc/filesystem/DirectoryFactory.cpp
+index 4f3647fbba..a303a9290f 100644
+--- a/xbmc/filesystem/DirectoryFactory.cpp
++++ b/xbmc/filesystem/DirectoryFactory.cpp
+@@ -58,7 +58,6 @@
+ #endif
+ #include "CDDADirectory.h"
+ #include "PluginDirectory.h"
+-#include "ISO9660Directory.h"
+ #ifdef HAS_UPNP
+ #include "UPnPDirectory.h"
+ #endif
+@@ -123,7 +122,6 @@ IDirectory* CDirectoryFactory::Create(const CURL& url)
+ #if defined(HAS_DVD_DRIVE)
+   if (url.IsProtocol("cdda")) return new CCDDADirectory();
+ #endif
+-  if (url.IsProtocol("iso9660")) return new CISO9660Directory();
+   if (url.IsProtocol("udf")) return new CUDFDirectory();
+   if (url.IsProtocol("plugin")) return new CPluginDirectory();
+ #if defined(TARGET_ANDROID)
+diff --git a/xbmc/filesystem/FileFactory.cpp b/xbmc/filesystem/FileFactory.cpp
+index 35bc2c3d55..d38f78659e 100644
+--- a/xbmc/filesystem/FileFactory.cpp
++++ b/xbmc/filesystem/FileFactory.cpp
+@@ -38,8 +38,6 @@
+ #include "platform/posix/filesystem/SMBFile.h"
+ #endif
+ #endif
+-#include "CDDAFile.h"
+-#include "ISOFile.h"
+ #if defined(TARGET_ANDROID)
+ #include "platform/android/filesystem/APKFile.h"
+ #endif
+@@ -130,7 +128,6 @@ IFile* CFileFactory::CreateLoader(const CURL& url)
+ #if defined(HAS_DVD_DRIVE)
+   else if (url.IsProtocol("cdda")) return new CFileCDDA();
+ #endif
+-  else if (url.IsProtocol("iso9660")) return new CISOFile();
+   else if(url.IsProtocol("udf")) return new CUDFFile();
+ #if defined(TARGET_ANDROID)
+   else if (url.IsProtocol("androidapp")) return new CFileAndroidApp();
+diff --git a/xbmc/music/MusicDatabase.cpp b/xbmc/music/MusicDatabase.cpp
+index 8725cb6a7f..af6f22f82c 100644
+--- a/xbmc/music/MusicDatabase.cpp
++++ b/xbmc/music/MusicDatabase.cpp
+@@ -46,7 +46,6 @@
+ #include "messaging/helpers/DialogHelper.h"
+ #include "messaging/helpers/DialogOKHelper.h"
+ #include "music/tags/MusicInfoTag.h"
+-#include "network/cddb.h"
+ #include "network/Network.h"
+ #include "playlists/SmartPlayList.h"
+ #include "profiles/ProfilesManager.h"
+diff --git a/xbmc/music/tags/MusicInfoTagLoaderCDDA.cpp b/xbmc/music/tags/MusicInfoTagLoaderCDDA.cpp
+index fc6b8bde7a..0904587d47 100644
+--- a/xbmc/music/tags/MusicInfoTagLoaderCDDA.cpp
++++ b/xbmc/music/tags/MusicInfoTagLoaderCDDA.cpp
+@@ -19,7 +19,6 @@
+  */
+ 
+ #include "MusicInfoTagLoaderCDDA.h"
+-#include "network/cddb.h"
+ #include "MusicInfoTag.h"
+ #include "profiles/ProfilesManager.h"
+ #include "storage/MediaManager.h"
+diff --git a/xbmc/platform/linux/XFileUtils.cpp b/xbmc/platform/linux/XFileUtils.cpp
+index bc68d9e8d5..8258eede77 100644
+--- a/xbmc/platform/linux/XFileUtils.cpp
++++ b/xbmc/platform/linux/XFileUtils.cpp
+@@ -45,8 +45,6 @@
+ //typedef struct statfs statfs64;
+ #endif
+ 
+-#include "storage/cdioSupport.h"
+-
+ #include "utils/log.h"
+ 
+ int ReadFile(HANDLE hFile, void* lpBuffer, DWORD nNumberOfBytesToRead,
+diff --git a/xbmc/storage/CMakeLists.txt b/xbmc/storage/CMakeLists.txt
+index de7ed68214..73e1e692cb 100644
+--- a/xbmc/storage/CMakeLists.txt
++++ b/xbmc/storage/CMakeLists.txt
+@@ -1,9 +1,7 @@
+ set(SOURCES AutorunMediaJob.cpp
+-            IoSupport.cpp
+             MediaManager.cpp)
+ 
+ set(HEADERS AutorunMediaJob.h
+-            IoSupport.h
+             IStorageProvider.h
+             MediaManager.h)
+ 
+-- 
+2.17.0
+
+
+From f0c7a86dbc0ece16b1521100a09eae9d5118dc19 Mon Sep 17 00:00:00 2001
+From: Stefan Saraev <stefan@saraev.ca>
+Date: Sun, 21 Jan 2018 22:51:46 +0200
+Subject: [PATCH 10/11] [tb] whatever this shit is, it is broken from day one
+
+... not allowing hw decoding h264 content if mpeg-2 was played previously. so get rid of it
+---
+ .../DVDCodecs/Video/DVDVideoCodecAmlogic.cpp        | 13 -------------
+ .../DVDCodecs/Video/DVDVideoCodecAmlogic.h          |  1 -
+ 2 files changed, 14 deletions(-)
+
+diff --git a/xbmc/cores/VideoPlayer/DVDCodecs/Video/DVDVideoCodecAmlogic.cpp b/xbmc/cores/VideoPlayer/DVDCodecs/Video/DVDVideoCodecAmlogic.cpp
+index c95c716553..89eee578b7 100644
+--- a/xbmc/cores/VideoPlayer/DVDCodecs/Video/DVDVideoCodecAmlogic.cpp
++++ b/xbmc/cores/VideoPlayer/DVDCodecs/Video/DVDVideoCodecAmlogic.cpp
+@@ -103,8 +103,6 @@ bool CDVDVideoCodecAmlogic::Register()
+   return true;
+ }
+ 
+-std::atomic<bool> CDVDVideoCodecAmlogic::m_InstanceGuard(false);
+-
+ bool CDVDVideoCodecAmlogic::Open(CDVDStreamInfo &hints, CDVDCodecOptions &options)
+ {
+   if (!CServiceBroker::GetSettings().GetBool(CSettings::SETTING_VIDEOPLAYER_USEAMCODEC))
+@@ -120,13 +118,6 @@ bool CDVDVideoCodecAmlogic::Open(CDVDStreamInfo &hints, CDVDCodecOptions &option
+ 
+   m_opened = false;
+ 
+-  // allow only 1 instance here
+-  if (m_InstanceGuard.exchange(true))
+-  {
+-    CLog::Log(LOGERROR, "CDVDVideoCodecAmlogic::Open - InstanceGuard locked\n");
+-    return false;
+-  }
+-
+   m_hints = hints;
+ 
+   CLog::Log(LOGDEBUG, "CDVDVideoCodecAmlogic::Opening: codec %d profile:%d extra_size:%d", m_hints.codec, hints.profile, hints.extrasize);
+@@ -294,7 +285,6 @@ bool CDVDVideoCodecAmlogic::Open(CDVDStreamInfo &hints, CDVDCodecOptions &option
+   CLog::Log(LOGINFO, "%s: Opened Amlogic Codec", __MODULE_NAME__);
+   return true;
+ FAIL:
+-  m_InstanceGuard.exchange(false);
+   Dispose();
+   return false;
+ }
+@@ -306,9 +296,6 @@ void CDVDVideoCodecAmlogic::Dispose(void)
+   if (m_Codec)
+     m_Codec->CloseDecoder(), m_Codec = nullptr;
+ 
+-  if (m_opened)
+-    m_InstanceGuard.exchange(false);
+-
+   m_videobuffer.iFlags = 0;
+ 
+   if (m_mpeg2_sequence)
+diff --git a/xbmc/cores/VideoPlayer/DVDCodecs/Video/DVDVideoCodecAmlogic.h b/xbmc/cores/VideoPlayer/DVDCodecs/Video/DVDVideoCodecAmlogic.h
+index 11522d92fa..c2fd8058fe 100644
+--- a/xbmc/cores/VideoPlayer/DVDCodecs/Video/DVDVideoCodecAmlogic.h
++++ b/xbmc/cores/VideoPlayer/DVDCodecs/Video/DVDVideoCodecAmlogic.h
+@@ -108,5 +108,4 @@ protected:
+   CBitstreamConverter *m_bitstream;
+ private:
+   std::shared_ptr<CAMLVideoBufferPool> m_videoBufferPool;
+-  static std::atomic<bool> m_InstanceGuard;
+ };
+-- 
+2.17.0
+
+
+From 1a371ab983f3a854c42a63a38e18ab80595f4be5 Mon Sep 17 00:00:00 2001
+From: Stefan Saraev <stefan@saraev.ca>
+Date: Tue, 20 Feb 2018 20:02:10 +0200
+Subject: [PATCH 11/11] [tb] nope. 'null' is not a valid mode
+
+---
+ xbmc/utils/AMLUtils.cpp | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/xbmc/utils/AMLUtils.cpp b/xbmc/utils/AMLUtils.cpp
+index beb4cbbb66..1c1e306f6c 100644
+--- a/xbmc/utils/AMLUtils.cpp
++++ b/xbmc/utils/AMLUtils.cpp
+@@ -560,9 +560,6 @@ bool aml_set_display_resolution(const RESOLUTION_INFO &res, std::string framebuf
+ 
+   if (aml_has_frac_rate_policy())
+   {
+-    if (cur_mode == mode)
+-      SysfsUtils::SetString("/sys/class/display/mode", "null");
+-
+     int fractional_rate = (res.fRefreshRate == floor(res.fRefreshRate)) ? 0 : 1;
+     SysfsUtils::SetInt("/sys/class/amhdmitx/amhdmitx0/frac_rate_policy", fractional_rate);
+   }
+-- 
+2.17.0
+

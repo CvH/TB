@@ -1,0 +1,40 @@
+#!/bin/sh
+
+################################################################################
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License version 2 as
+#  published by the Free Software Foundation.
+################################################################################
+
+# SEQ=02
+
+case "$1" in
+  start)
+    (
+      # defaults
+      SSHD_SECURE="true"
+
+      # import settings from xml as env vars
+      . /etc/profile
+      eval $(get_addon_settings tb.settings)
+
+      if [ "$SSHD_ENABLED" = "true" ] ; then
+        if [ "$SSHD_SECURE" = "true" ] ; then
+          SSH_ARGS="-s"
+        fi
+        mkdir -p /storage/.config/dropbear
+        mkdir -p /storage/.ssh
+        /usr/sbin/dropbear -F -R $SSH_ARGS
+      fi
+    ) &
+    ;;
+  stop)
+    pkill -TERM -f dropbear
+    ;;
+  restart)
+    "$0" stop
+    "$0" start
+    ;;
+esac
+
+exit 0

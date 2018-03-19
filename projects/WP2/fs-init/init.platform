@@ -1,0 +1,47 @@
+#!/bin/sh
+
+################################################################################
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License version 2 as
+#  published by the Free Software Foundation.
+################################################################################
+
+hdmimode=720p
+
+for arg in $(cat /proc/cmdline); do
+  case $arg in
+    hdmimode=*)
+      hdmimode="${arg#*=}"
+      ;;
+  esac
+done
+
+# set initial video state
+echo 1 > /sys/class/video/disable_video
+
+# Set colorspace to avoid no HDMI signal with non-4K output modes
+echo 422,8bit > /sys/class/amhdmitx/amhdmitx0/attr
+
+# setup framebuffer
+echo 0 > /sys/class/graphics/fb0/blank
+echo 1 > /sys/class/graphics/fb1/blank
+echo 0 > /sys/class/graphics/fb0/free_scale
+echo 0 > /sys/class/graphics/fb1/free_scale
+
+# rendercapture does not like double_write_mode=0x0
+echo 0x2 > /sys/module/amvdec_h265/parameters/double_write_mode
+
+# Set framebuffer geometry to match the resolution
+case "$hdmimode" in
+  720*)
+    fbset -fb /dev/fb0 -g 1280 720 1920 2160 32
+    ;;
+  1080*)
+    fbset -fb /dev/fb0 -g 1920 1080 1920 2160 32
+    ;;
+esac
+fbset -fb /dev/fb1 -g 32 32 32 32 32
+
+# Include deinterlacer into default VFM map
+echo rm default > /sys/class/vfm/map
+echo add default decoder ppmgr deinterlace amvideo > /sys/class/vfm/map

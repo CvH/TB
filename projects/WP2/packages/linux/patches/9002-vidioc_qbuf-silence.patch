@@ -1,0 +1,12 @@
+diff --git a/drivers/amlogic/video_dev/amlvideo.c b/drivers/amlogic/video_dev/amlvideo.c
+index 2b3aa7c..af27ed5 100644
+--- a/drivers/amlogic/video_dev/amlvideo.c
++++ b/drivers/amlogic/video_dev/amlvideo.c
+@@ -597,7 +597,6 @@ static int vidioc_qbuf(struct file *file, void *priv, struct v4l2_buffer *p)
+ 				if (p->index > index)
+ 				{
+ 					vf_put(vfq_pop(&q_omx), RECEIVER_NAME);
+-					printk("vidioc_qbuf skip: index:%u:%u\n", p->index, index);
+ 					continue;
+ 				}
+ 				else if (p->index == index)

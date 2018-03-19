@@ -1,0 +1,15 @@
+# target architecture
+TARGET_ARCH="aarch64"
+TARGET_CPU="cortex-a53"
+
+# Kernel target
+KERNEL_TARGET="Image.lzo"
+KERNEL_EXTRA_TARGET="gxbb_p200_2G_wetek_play_2.dtb gxbb_p200_1G_wetek_hub.dtb"
+KERNEL_BOOTIMG_OPTIONS="--base 0x0 --kernel_offset 0x1080000"
+KERNEL_EXTRA_DEPENDS="mkbootimg:host aml-dtbtools:host"
+
+# OpenGL-ES implementation to use
+OPENGLES="opengl-meson-gxbb"
+
+# additional packages to install. space separated list
+ADDITIONAL_PACKAGES="gpu-aml"

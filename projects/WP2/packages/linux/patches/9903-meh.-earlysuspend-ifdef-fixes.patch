@@ -1,0 +1,117 @@
+From 7b97a238b52427b4e9e34322d060a193acdf1692 Mon Sep 17 00:00:00 2001
+From: Stefan Saraev <stefan@saraev.ca>
+Date: Tue, 19 Dec 2017 23:16:19 +0200
+Subject: [PATCH] meh. earlysuspend ifdef fixes
+
+---
+ drivers/amlogic/hdmi/hdmi_tx_20/hdmi_tx_main.c | 4 +++-
+ sound/soc/codecs/tas5707.c                     | 2 ++
+ sound/soc/codecs/tas5717.c                     | 6 +++++-
+ sound/soc/codecs/tas5731.c                     | 2 ++
+ 4 files changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/amlogic/hdmi/hdmi_tx_20/hdmi_tx_main.c b/drivers/amlogic/hdmi/hdmi_tx_20/hdmi_tx_main.c
+index 9d81b9e..7be82c8 100644
+--- a/drivers/amlogic/hdmi/hdmi_tx_20/hdmi_tx_main.c
++++ b/drivers/amlogic/hdmi/hdmi_tx_20/hdmi_tx_main.c
+@@ -249,6 +249,7 @@ static void hdmitx_late_resume(struct early_suspend *h)
+ 	hdmi_print(INF, SYS "late resume\n");
+ }
+ 
++#ifdef CONFIG_HAS_EARLYSUSPEND
+ /* Set avmute_set signal to HDMIRX */
+ static int hdmitx_reboot_notifier(struct notifier_block *nb,
+ 	unsigned long action, void *data)
+@@ -260,6 +261,7 @@ static int hdmitx_reboot_notifier(struct notifier_block *nb,
+ 	hdev->HWOp.CntlMisc(hdev, MISC_HPLL_OP, HPLL_DISABLE);
+ 	return NOTIFY_OK;
+ }
++#endif
+ 
+ static struct early_suspend hdmitx_early_suspend_handler = {
+ 	.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN - 10,
+@@ -3474,9 +3476,9 @@ static int amhdmitx_probe(struct platform_device *pdev)
+ 
+ #ifdef CONFIG_HAS_EARLYSUSPEND
+ 	register_early_suspend(&hdmitx_early_suspend_handler);
+-#endif
+ 	hdmitx_device.nb.notifier_call = hdmitx_reboot_notifier;
+ 	register_reboot_notifier(&hdmitx_device.nb);
++#endif
+ 	if ((init_flag&INIT_FLAG_POWERDOWN) && (hpdmode == 2))
+ 		hdmitx_device.mux_hpd_if_pin_high_flag = 0;
+ 	else
+diff --git a/sound/soc/codecs/tas5707.c b/sound/soc/codecs/tas5707.c
+index 187a2a9..65ca393 100644
+--- a/sound/soc/codecs/tas5707.c
++++ b/sound/soc/codecs/tas5707.c
+@@ -122,7 +122,9 @@ struct tas5707_priv {
+ 	unsigned char Ch2_vol;
+ 	unsigned char master_vol;
+ 	unsigned mclk;
++#ifdef CONFIG_HAS_EARLYSUSPEND
+ 	struct early_suspend early_suspend;
++#endif
+ };
+ 
+ static int tas5707_set_EQ_enum(struct snd_kcontrol *kcontrol,
+diff --git a/sound/soc/codecs/tas5717.c b/sound/soc/codecs/tas5717.c
+index 7bfe8c9..de85f0b 100644
+--- a/sound/soc/codecs/tas5717.c
++++ b/sound/soc/codecs/tas5717.c
+@@ -97,7 +97,9 @@ struct tas5717_priv {
+ 	unsigned char Ch2_vol;
+ 	unsigned char master_vol;
+ 	unsigned mclk;
++#ifdef CONFIG_HAS_EARLYSUSPEND
+ 	struct early_suspend early_suspend;
++#endif
+ 	struct task_struct *phone_task;
+ };
+ /*Master Volume*/
+@@ -682,6 +684,7 @@ static int tas5717_init(struct snd_soc_codec *codec)
+ 			test_data, 2);
+ 	}
+ 	/*kthread for phone*/
++#ifdef CONFIG_HAS_EARLYSUSPEND
+ 	if (tas5717->pdata->scan_pin > 0) {
+ 		tas5717->phone_task =
+ 			kthread_create(phone_thread, codec, "phone_thread");
+@@ -693,6 +696,7 @@ static int tas5717_init(struct snd_soc_codec *codec)
+ 		}
+ 		wake_up_process(tas5717->phone_task);
+ 	}
++#endif
+ 	return 0;
+ }
+ 
+@@ -726,11 +730,11 @@ static int tas5717_remove(struct snd_soc_codec *codec)
+ 	struct tas5717_priv *tas5717 = snd_soc_codec_get_drvdata(codec);
+ #ifdef CONFIG_HAS_EARLYSUSPEND
+ 	unregister_early_suspend(&(tas5717->early_suspend));
+-#endif
+ 	if (tas5717->phone_task) {
+ 		kthread_stop(tas5717->phone_task);
+ 		tas5717->phone_task = NULL;
+ 	}
++#endif
+ 	return 0;
+ }
+ 
+diff --git a/sound/soc/codecs/tas5731.c b/sound/soc/codecs/tas5731.c
+index 2d29c54..a69acc2 100644
+--- a/sound/soc/codecs/tas5731.c
++++ b/sound/soc/codecs/tas5731.c
+@@ -96,7 +96,9 @@ struct tas5731_priv {
+ 	unsigned char Ch2_vol;
+ 	unsigned char master_vol;
+ 	unsigned mclk;
++#ifdef CONFIG_HAS_EARLYSUSPEND
+ 	struct early_suspend early_suspend;
++#endif
+ };
+ 
+ static const DECLARE_TLV_DB_SCALE(mvol_tlv, -12700, 50, 1);
+-- 
+2.11.0
+

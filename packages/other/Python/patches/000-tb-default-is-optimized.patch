@@ -1,0 +1,25 @@
+From 96aad15787cdfd6d0295cb20edf0a8432a898052 Mon Sep 17 00:00:00 2001
+From: Stefan Saraev <stefan@saraev.ca>
+Date: Fri, 20 May 2016 13:12:45 +0300
+Subject: [PATCH] default is optimized
+
+---
+ Python/compile.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Python/compile.c b/Python/compile.c
+index 51f2874..45c2c7a 100644
+--- a/Python/compile.c
++++ b/Python/compile.c
+@@ -32,7 +32,7 @@
+ #include "symtable.h"
+ #include "opcode.h"
+ 
+-int Py_OptimizeFlag = 0;
++int Py_OptimizeFlag = 1;
+ 
+ #define DEFAULT_BLOCK_SIZE 16
+ #define DEFAULT_BLOCKS 8
+-- 
+2.1.4
+

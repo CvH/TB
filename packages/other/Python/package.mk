@@ -5,7 +5,7 @@
 ################################################################################
 
 PKG_NAME="Python"
-PKG_VERSION="2.7.14"
+PKG_VERSION="3.6.2"
 PKG_SITE="http://www.python.org/"
 PKG_URL="http://www.python.org/ftp/python/$PKG_VERSION/$PKG_NAME-$PKG_VERSION.tar.xz"
 PKG_DEPENDS_TARGET="sqlite expat bzip2 libressl Python:host"
@@ -15,28 +15,29 @@ PKG_AUTORECONF="yes"
 PKG_CONFIGURE_OPTS_HOST="
   ac_cv_prog_HAS_HG=/bin/false
   ac_cv_prog_SVNVERSION=/bin/false
-  --enable-static
-  --disable-pyo-build
   --disable-pyc-build
+  --disable-ossaudiodev
   --disable-sqlite3
   --disable-codecs-cjk
   --disable-nis
-  --without-cxx-main
-  --disable-ssl
-  --disable-bz2
-  --enable-zlib
-  --disable-dbm
-  --disable-gdbm
-  --disable-bsddb
   --enable-unicodedata
+  --disable-openssl
+  --disable-readline
+  --disable-bzip2
+  --enable-zlib
+  --disable-xz
   --disable-tk
   --disable-curses
-  --disable-ossaudiodev
   --disable-pydoc
   --disable-test-modules
   --disable-lib2to3
-  --disable-ipv6
+  --disable-idle3
+  --without-cxx-main
   --with-expat=builtin
+  --with-libmpdec=none
+  --with-doc-strings
+  --without-pymalloc
+  --without-ensurepip
 "
 
 PKG_CONFIGURE_OPTS_TARGET="
@@ -54,30 +55,29 @@ PKG_CONFIGURE_OPTS_TARGET="
   ac_cv_buggy_getaddrinfo=no
   ac_cv_header_bluetooth_bluetooth_h=no
   ac_cv_header_bluetooth_h=no
-  --disable-pyo-build
   --disable-pyc-build
-  --enable-static
+  --disable-ossaudiodev
   --enable-sqlite3
   --disable-codecs-cjk
   --disable-nis
-  --enable-ssl
-  --enable-bz2
-  --enable-zlib
-  --disable-dbm
-  --disable-gdbm
-  --disable-bsddb
   --enable-unicodedata
+  --enable-openssl
+  --disable-readline
+  --enable-bzip2
+  --enable-zlib
+  --disable-xz
   --disable-tk
   --disable-curses
-  --disable-ossaudiodev
   --disable-pydoc
   --disable-test-modules
   --disable-lib2to3
-  --enable-unicode=ucs4
+  --disable-idle3
   --without-cxx-main
-  --without-doc-strings
   --with-expat=system
+  --with-libmpdec=none
+  --with-doc-strings
   --without-pymalloc
+  --without-ensurepip
 "
 
 post_unpack() {
@@ -88,21 +88,28 @@ post_unpack() {
   touch $PKG_BUILD/Python/graminit.c
 }
 
+post_makeinstall_host() {
+  rm -f $TOOLCHAIN/bin/python*-config
+  rm -f $TOOLCHAIN/bin/smtpd.py*
+  rm -f $TOOLCHAIN/bin/2to3*
+  rm -f $TOOLCHAIN/bin/pyvenv
+  rm -f $TOOLCHAIN/bin/pydoc*
+}
+
 post_makeinstall_target() {
   EXCLUDE_DIR="ensurepip config compiler distutils sysconfigdata unittest"
   for dir in $EXCLUDE_DIR; do
-    rm -rf $INSTALL/usr/lib/python2.7/$dir
+    rm -rf $INSTALL/usr/lib/python3.6/$dir
   done
-  rm -rf $INSTALL/usr/lib/python2.7/lib-dynload/sysconfigdata
+  rm -rf $INSTALL/usr/lib/python3.6/lib-dynload/sysconfigdata
 
   rm -f $INSTALL/usr/bin/python*-config
-  rm -f $INSTALL/usr/bin/smtpd.py
+  rm -f $INSTALL/usr/bin/smtpd.py*
+  rm -f $INSTALL/usr/bin/2to3*
+  rm -f $INSTALL/usr/bin/pyvenv
+  rm -f $INSTALL/usr/bin/pydoc*
 
-  rm -f $INSTALL/usr/bin/python
-  rm -f $INSTALL/usr/bin/python2
-  rm -f $INSTALL/usr/bin/python2.7
-
-  cd $INSTALL/usr/lib/python2.7
-  python -Wi -t -B $PKG_BUILD/Lib/compileall.py -d /usr/lib/python2.7 -f .
-  find $INSTALL/usr/lib/python2.7 -name "*.py" -exec rm -f {} \; &>/dev/null
+  cd $INSTALL/usr/lib/python3.6
+  $TOOLCHAIN/bin/python3 -Wi -t -B $PKG_BUILD/Lib/compileall.py -d /usr/lib/python3.6 -b -f .
+  find $INSTALL/usr/lib/python3.6 -name "*.py" -exec rm -f {} \; &>/dev/null
 }

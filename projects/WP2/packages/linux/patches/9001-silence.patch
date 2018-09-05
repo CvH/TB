@@ -1,0 +1,40 @@
+diff --git a/drivers/amlogic/display/vout/vout_log.h b/drivers/amlogic/display/vout/vout_log.h
+index 157bb9c..40fd2de 100644
+--- a/drivers/amlogic/display/vout/vout_log.h
++++ b/drivers/amlogic/display/vout/vout_log.h
+@@ -29,7 +29,7 @@
+ 	pr_info(fmt, ##__VA_ARGS__)
+ 
+ #define vout_log_err(fmt, ...) \
+-	pr_err(fmt, ##__VA_ARGS__)
++	pr_info(fmt, ##__VA_ARGS__)
+ 
+ #define vout_log_dbg(fmt, ...) \
+ 	pr_warn(fmt, ##__VA_ARGS__)
+diff --git a/drivers/amlogic/ppmgr/ppmgr_drv.c b/drivers/amlogic/ppmgr/ppmgr_drv.c
+index 252fc60..5e502d1 100644
+--- a/drivers/amlogic/ppmgr/ppmgr_drv.c
++++ b/drivers/amlogic/ppmgr/ppmgr_drv.c
+@@ -40,7 +40,7 @@
+ #define PPMGRDRV_INFO(fmt, args...) pr_info("PPMGRDRV: info: "fmt"", ## args)
+ #define PPMGRDRV_DBG(fmt, args...) pr_debug("PPMGRDRV: dbg: "fmt"", ## args)
+ #define PPMGRDRV_WARN(fmt, args...) pr_warn("PPMGRDRV: warn: "fmt"", ## args)
+-#define PPMGRDRV_ERR(fmt, args...) pr_err("PPMGRDRV: err: "fmt"", ## args)
++#define PPMGRDRV_ERR(fmt, args...) pr_info("PPMGRDRV: err: "fmt"", ## args)
+ 
+ /***********************************************************************
+  *
+diff --git a/drivers/amlogic/video_dev/amlvideo.c b/drivers/amlogic/video_dev/amlvideo.c
+index 27709a4..241a54e 100644
+--- a/drivers/amlogic/video_dev/amlvideo.c
++++ b/drivers/amlogic/video_dev/amlvideo.c
+@@ -48,7 +48,7 @@
+ #define AMLVIDEO_INFO(fmt, args...) pr_info("amlvid:info: "fmt"", ## args)
+ #define AMLVIDEO_DBG(fmt, args...) pr_debug("amlvid:dbg: "fmt"", ## args)
+ #define AMLVIDEO_WARN(fmt, args...) pr_warn("amlvid:warn: "fmt"", ## args)
+-#define AMLVIDEO_ERR(fmt, args...) pr_err("amlvid:err: "fmt"", ## args)
++#define AMLVIDEO_ERR(fmt, args...) pr_info("amlvid:err: "fmt"", ## args)
+ 
+ /* Wake up at about 30 fps */
+ #define WAKE_NUMERATOR 30
+

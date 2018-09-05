@@ -1,0 +1,13 @@
+#!/bin/sh
+
+# SEQ=00
+
+case "$1" in
+  start)
+    for module in $(cat /etc/modules-load.d/* 2>/dev/null) ; do
+      modprobe $module
+    done
+    ;;
+esac
+
+exit 0

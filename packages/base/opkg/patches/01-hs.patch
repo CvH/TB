@@ -1,0 +1,63 @@
+From 8efd285968f4fd168b9e6c71697b615d5eb186ec Mon Sep 17 00:00:00 2001
+From: Stefan Saraev <stefan@saraev.ca>
+Date: Mon, 3 Dec 2018 22:46:13 +0200
+Subject: [PATCH 1/2] dirs
+
+---
+ libopkg/opkg_conf.h | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/libopkg/opkg_conf.h b/libopkg/opkg_conf.h
+index 0734067..31e386c 100644
+--- a/libopkg/opkg_conf.h
++++ b/libopkg/opkg_conf.h
+@@ -35,12 +35,12 @@ extern "C" {
+ #define OPKG_CONF_TMP_DIR_SUFFIX "opkg-XXXXXX"
+ #define OPKG_BACKUP_SUFFIX "-opkg.backup"
+ 
+-#define OPKG_CONF_DEFAULT_LISTS_DIR     VARDIR "/lib/opkg/lists"
+-#define OPKG_CONF_DEFAULT_INFO_DIR      VARDIR "/lib/opkg/info"
+-#define OPKG_CONF_DEFAULT_STATUS_FILE   VARDIR "/lib/opkg/status"
+-#define OPKG_CONF_DEFAULT_CACHE_DIR     VARDIR "/cache/opkg"
+-#define OPKG_CONF_DEFAULT_CONF_FILE_DIR SYSCONFDIR "/opkg"
+-#define OPKG_CONF_DEFAULT_LOCK_FILE     VARDIR "/run/opkg.lock"
++#define OPKG_CONF_DEFAULT_LISTS_DIR     "/storage/.extra/var/lib/opkg/lists"
++#define OPKG_CONF_DEFAULT_INFO_DIR      "/var/lib/opkg/info"
++#define OPKG_CONF_DEFAULT_STATUS_FILE   "/var/lib/opkg/status"
++#define OPKG_CONF_DEFAULT_CACHE_DIR     "/storage/.extra/var/cache/opkg"
++#define OPKG_CONF_DEFAULT_CONF_FILE_DIR "/etc/opkg"
++#define OPKG_CONF_DEFAULT_LOCK_FILE     "/storage/.extra/var/run/opkg.lock"
+ 
+ /* In case the config file defines no dest */
+ #define OPKG_CONF_DEFAULT_DEST_NAME "root"
+-- 
+2.19.2
+
+
+From 3a6822500974296b2d84d0e26901882eea5bcd57 Mon Sep 17 00:00:00 2001
+From: Stefan Saraev <stefan@saraev.ca>
+Date: Wed, 26 Dec 2018 20:10:16 +0200
+Subject: [PATCH 2/2] force checksum
+
+---
+ libopkg/pkg.c | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/libopkg/pkg.c b/libopkg/pkg.c
+index ca5ff08..7610948 100644
+--- a/libopkg/pkg.c
++++ b/libopkg/pkg.c
+@@ -1523,10 +1523,6 @@ int pkg_verify(pkg_t * pkg)
+         err = opkg_verify_md5sum(pkg->local_filename, pkg->md5sum);
+         if (err)
+             goto fail;
+-    } else if (!opkg_config->force_checksum) {
+-         opkg_msg(ERROR, "Checksum is either missing or unsupported on opkg. To bypass verification "
+-                  "use --force-checksum. Aborting \n");
+-         return -1;
+     }
+ 
+     if (opkg_config->check_pkg_signature) {
+-- 
+2.19.2
+

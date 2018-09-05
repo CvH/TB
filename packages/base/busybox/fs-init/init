@@ -1,0 +1,132 @@
+#!/bin/sh
+
+UPDATE_DIR=/storage/.update
+
+showcursor() {
+  echo -en "\033[?25h"
+  echo 2>/dev/null 1 > /sys/devices/virtual/graphics/fbcon/cursor_blink
+}
+
+hidecursor() {
+  echo -en "\033[?25l"
+  echo 2>/dev/null 0 > /sys/devices/virtual/graphics/fbcon/cursor_blink
+}
+
+error() {
+  echo "### Error: $1 ###"
+  showcursor
+  sh </dev/tty1 >/dev/tty1 2>&1
+}
+
+do_reboot() {
+  umount /boot &>/dev/null
+  umount /storage &>/dev/null
+  reboot -f
+}
+
+load_splash() {
+  SPLASH="/splash/splash.png"
+  if [ -n "$1" ] ; then
+    SPLASH="$1"
+  fi
+  ply-image "$SPLASH" &>/dev/null
+}
+
+mount_part() {
+  ERR=1
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+    mount -o "$3" "$1" "$2" &>/dev/null
+    [ "$?" -eq "0" ] && ERR=0 && break
+    sleep 1
+  done
+  [ "$ERR" -ne "0" ] && error "Could not mount $1"
+}
+
+mount_parts() {
+  mount_part "$boot" "/boot" "ro,noatime"
+  mount_part "$disk" "/storage" "rw,noatime"
+}
+
+update() {
+  if [ -f "$UPDATE_DIR/$1" ]; then
+    cp $UPDATE_DIR/$1 /boot
+  fi
+}
+
+force_fsck() {
+  load_splash /splash/fsck-started.png
+  e2fsck -y $disk &>/dev/null
+  if [ "$(( $? & 8 ))" = 8 ] ; then
+    load_splash /splash/fsck-failed.png
+    while : ; do sleep 3600 ; done
+  fi
+  do_reboot
+}
+
+check_disks() {
+  e2fsck -p $disk &>/dev/null
+  if [ "$(( $? & 4 ))" = 4 ] ; then
+    force_fsck
+  elif [ "$(( $? & 2 ))" = 2 ] ; then
+    do_reboot
+  fi
+}
+
+check_update() {
+  UPDATE_TAR=$(ls -1 "$UPDATE_DIR"/*.tar 2>/dev/null)
+  if [ -n "$UPDATE_TAR" ] ; then
+    for ARCHIVE in $UPDATE_TAR ; do
+      load_splash /splash/update-found.png
+      tar -xf $ARCHIVE -C $UPDATE_DIR &>/dev/null
+      load_splash /splash/update-apply.png
+      mount -o remount,rw /boot
+      update dtb.img
+      update kernel.img
+      update root.sqfs
+      mount -o remount,ro /boot
+      load_splash /splash/splash.png
+    done
+    rm -rf $UPDATE_DIR/* &>/dev/null
+    do_reboot
+  fi
+}
+
+prepare_sysroot() {
+  mount_part "/boot/root.sqfs" "/sysroot" "ro,loop"
+
+  mkdir -p /storage/.config
+  mkdir -p /storage/.update
+
+  for mount in boot storage dev sys tmp proc ; do
+    mount --move /$mount /sysroot/$mount
+  done
+}
+
+/bin/busybox mkdir -p /dev /proc /sys /tmp /boot /storage /sysroot
+/bin/busybox mount -t devtmpfs none /dev
+/bin/busybox mount -t proc none /proc
+/bin/busybox mount -t sysfs none /sys
+/bin/busybox mount -t tmpfs none /tmp
+
+chmod 1777 /tmp
+echo '1 4 1 7' > /proc/sys/kernel/printk
+
+if [ -f "/init.platform" ]; then
+  . /init.platform
+fi
+
+clear
+hidecursor
+
+for arg in $(cat /proc/cmdline); do
+  case $arg in
+    boot=*) boot="${arg#*=}" ;;
+    disk=*) disk="${arg#*=}" ;;
+  esac
+done
+
+for STEP in load_splash check_disks mount_parts check_update prepare_sysroot; do
+  $STEP
+done
+
+exec /bin/busybox switch_root /sysroot /sbin/init

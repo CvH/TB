@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
 PKG_NAME="pvr.hts"
-PKG_VERSION="245df75e32"
+PKG_VERSION="dc35ade7b4"
 PKG_SITE="https://github.com/kodi-pvr/pvr.hts"
 PKG_URL="$PKG_SITE/archive/$PKG_VERSION.tar.gz"
 PKG_DEPENDS_TARGET="kodi-platform"
